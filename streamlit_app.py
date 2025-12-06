@@ -183,6 +183,22 @@ Format with clear headings and bullet points. Use emoji (🌿 herbs, 🧘 yoga, 
     except Exception as e:
         return f"Error: {str(e)}"
 
+# Helper function to sanitize text for PDF (ASCII-safe)
+def sanitize_for_pdf(text):
+    """Remove non-ASCII characters and clean text for PDF generation."""
+    if not text:
+        return ""
+    # Convert to string if not already
+    text = str(text)
+    # Remove markdown formatting
+    text = text.replace('**', '').replace('*', '')
+    text = text.replace('###', '').replace('##', '').replace('#', '')
+    # Encode to ASCII, replacing non-ASCII chars with closest equivalent or removing them
+    text = text.encode('ascii', 'ignore').decode('ascii')
+    # Clean up any extra whitespace
+    text = ' '.join(text.split())
+    return text
+
 # Generate PDF report
 def generate_pdf_report(user_info, conversation):
     pdf = FPDF()
@@ -214,7 +230,7 @@ def generate_pdf_report(user_info, conversation):
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 7, f"{label}:", ln=True)
         pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 6, str(value))
+        pdf.multi_cell(0, 6, sanitize_for_pdf(value))
         pdf.ln(2)
     
     pdf.ln(5)
@@ -238,13 +254,8 @@ def generate_pdf_report(user_info, conversation):
             pdf.set_text_color(0, 0, 0)  # Reset to black
             pdf.set_font("Helvetica", "", 10)
         
-        # Clean the content - remove markdown formatting and emojis
-        content = msg['content']
-        content = content.replace('**', '').replace('*', '')
-        content = content.replace('###', '').replace('##', '').replace('#', '')
-        # Remove common emojis that might cause issues
-        for emoji in ['🌿', '🧘', '🥗', '💊', '🔮', '👤', '🎂', '⚧', '🧬', '😰', '🏥', '📋', '💾', '📥', '🔄', '📊', '❌', '✅', '👋', '📝', '💬']:
-            content = content.replace(emoji, '')
+        # Sanitize content for PDF
+        content = sanitize_for_pdf(msg['content'])
         pdf.multi_cell(0, 6, content)
         pdf.ln(5)
     
