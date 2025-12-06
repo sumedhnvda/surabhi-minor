@@ -22,15 +22,54 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for wider sidebar
+# Custom CSS for responsive design
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] {
-        min-width: 400px;
-        max-width: 450px;
+    /* Desktop: wider sidebar */
+    @media (min-width: 768px) {
+        [data-testid="stSidebar"] {
+            min-width: 350px;
+            max-width: 400px;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            width: 350px;
+        }
     }
-    [data-testid="stSidebar"] > div:first-child {
-        width: 400px;
+    
+    /* Mobile: default sidebar behavior */
+    @media (max-width: 767px) {
+        [data-testid="stSidebar"] {
+            min-width: 0 !important;
+            max-width: 100vw !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            width: 100% !important;
+        }
+        /* Better mobile spacing */
+        .stMainBlockContainer {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        /* Improve chat input on mobile */
+        [data-testid="stChatInput"] {
+            max-width: 100% !important;
+        }
+        /* Better form spacing on mobile */
+        [data-testid="stForm"] {
+            padding: 0.5rem !important;
+        }
+        /* Adjust title size on mobile */
+        h1 {
+            font-size: 1.75rem !important;
+        }
+    }
+    
+    /* Ensure chat messages don't overflow */
+    [data-testid="stChatMessage"] {
+        max-width: 100%;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 </style>
 """, unsafe_allow_html=True)
