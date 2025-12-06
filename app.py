@@ -5,6 +5,8 @@ from google.genai import types
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from fpdf import FPDF
+import io
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +21,19 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Custom CSS for wider sidebar
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] {
+        min-width: 400px;
+        max-width: 450px;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        width: 400px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Load the Ayurvedic dataset
 @st.cache_data
@@ -168,30 +183,79 @@ Format with clear headings and bullet points. Use emoji (🌿 herbs, 🧘 yoga, 
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Generate report
-def generate_report(user_info, conversation):
-    report = f"""# AyurGenix AI - Consultation Report
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-## User Profile
-- **Name:** {user_info.get('name', 'Not provided')}
-- **Age:** {user_info.get('age', 'Not provided')}
-- **Gender:** {user_info.get('gender', 'Not provided')}
-- **Dosha Type:** {user_info.get('dosha', 'Unknown')}
-- **Stress Level:** {user_info.get('stress', 'Not provided')}
-- **Existing Conditions:** {user_info.get('conditions', 'None mentioned')}
-- **Current Medications:** {user_info.get('medications', 'None mentioned')}
-
-## Consultation Summary
-"""
+# Generate PDF report
+def generate_pdf_report(user_info, conversation):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 10, "AyurGenix AI - Consultation Report", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
+    pdf.ln(10)
+    
+    # User Profile Section
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "User Profile", ln=True)
+    
+    profile_items = [
+        ("Name", user_info.get('name', 'Not provided')),
+        ("Age", str(user_info.get('age', 'Not provided'))),
+        ("Gender", user_info.get('gender', 'Not provided')),
+        ("Dosha Type", user_info.get('dosha', 'Unknown')),
+        ("Stress Level", user_info.get('stress', 'Not provided')),
+        ("Existing Conditions", user_info.get('conditions', 'None mentioned')),
+        ("Current Medications", user_info.get('medications', 'None mentioned')),
+    ]
+    
+    for label, value in profile_items:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 7, f"{label}:", ln=True)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.multi_cell(0, 6, str(value))
+        pdf.ln(2)
+    
+    pdf.ln(5)
+    
+    # Consultation Summary Section
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "Consultation Summary", ln=True)
+    pdf.ln(5)
+    
     for msg in conversation:
         if msg["role"] == "user":
-            report += f"\n**You:** {msg['content']}\n"
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(0, 0, 128)  # Blue for user
+            pdf.cell(0, 8, "You:", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", "", 10)
         else:
-            report += f"\n**AyurGenix AI:** {msg['content']}\n"
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(0, 100, 0)  # Green for AI
+            pdf.cell(0, 8, "AyurGenix AI:", ln=True)
+            pdf.set_text_color(0, 0, 0)  # Reset to black
+            pdf.set_font("Helvetica", "", 10)
+        
+        # Clean the content - remove markdown formatting and emojis
+        content = msg['content']
+        content = content.replace('**', '').replace('*', '')
+        content = content.replace('###', '').replace('##', '').replace('#', '')
+        # Remove common emojis that might cause issues
+        for emoji in ['🌿', '🧘', '🥗', '💊', '🔮', '👤', '🎂', '⚧', '🧬', '😰', '🏥', '📋', '💾', '📥', '🔄', '📊', '❌', '✅', '👋', '📝', '💬']:
+            content = content.replace(emoji, '')
+        pdf.multi_cell(0, 6, content)
+        pdf.ln(5)
     
-    report += "\n---\n*Disclaimer: For informational purposes only. Consult a healthcare provider for medical concerns.*"
-    return report
+    # Disclaimer
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(0, 6, "Disclaimer: This report is for informational purposes only. Please consult a qualified healthcare provider for medical concerns.")
+    
+    # Return PDF as bytes
+    return bytes(pdf.output())
 
 # Initialize session state
 if "conversation" not in st.session_state:
@@ -262,12 +326,12 @@ with st.sidebar:
     st.divider()
     
     if st.session_state.conversation:
-        report_content = generate_report(st.session_state.user_info, st.session_state.conversation)
+        pdf_bytes = generate_pdf_report(st.session_state.user_info, st.session_state.conversation)
         st.download_button(
-            label="📥 Download Report",
-            data=report_content,
-            file_name=f"ayurgenix_report_{datetime.now().strftime('%Y%m%d_%H%M')}.md",
-            mime="text/markdown",
+            label="📥 Download Report (PDF)",
+            data=pdf_bytes,
+            file_name=f"ayurgenix_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf",
             use_container_width=True
         )
     
