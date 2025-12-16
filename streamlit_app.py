@@ -19,11 +19,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ------------------ CSS ------------------
 st.markdown("""
 <style>
     @media (min-width: 768px) {
         [data-testid="stSidebar"] { min-width: 350px; max-width: 400px; }
-        [data-testid="stSidebar"] > div:first-child { width: 350px; }
     }
     [data-testid="stChatMessage"] {
         max-width: 100%;
@@ -32,6 +32,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ------------------ DATASET ------------------
 @st.cache_data
 def load_dataset():
     try:
@@ -40,6 +41,7 @@ def load_dataset():
         st.error(e)
         return None
 
+# ------------------ GEMINI ------------------
 @st.cache_resource
 def init_client():
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -47,6 +49,7 @@ def init_client():
         return None
     return genai.Client(api_key=api_key)
 
+# ------------------ SEARCH ------------------
 def search_dataset(df, query):
     if df is None:
         return []
@@ -75,8 +78,10 @@ Prevention: {m.get('Prevention')}
 """
     return context
 
+# ------------------ AI RESPONSE ------------------
 def generate_response(client, prompt, history):
     contents = []
+
     for h in history[-6:]:
         role = "user" if h["role"] == "user" else "model"
         contents.append(types.Content(
@@ -93,29 +98,24 @@ def generate_response(client, prompt, history):
         system_instruction="""
 You are AyurGenix AI, a compassionate Ayurvedic medicine assistant.
 
-DATABASE RULES:
-- Database content is VERIFIED and must be the PRIMARY source.
-- Use Google Search only to supplement dosage, preparation, and safety info.
-
-MANDATORY RESPONSE ORDER (DO NOT CHANGE):
+MANDATORY RESPONSE ORDER:
 
 1️⃣ 🩺 Possible Diseases (Based on Symptoms)
-   - Use Disease column from database FIRST
-   - List up to 3 possible diseases
-   - Give one-line reasoning per disease
+   - Use database FIRST
+   - List up to 3 diseases
+   - One-line reasoning
+   - NOT a diagnosis
 
-2️⃣ 🌿 Ayurvedic Herbs & Formulations (from database)
-3️⃣ 🥗 Diet & Lifestyle Recommendations
-4️⃣ 🧘 Yoga & Physical Therapy
-5️⃣ 🛡️ Prevention (if available)
+2️⃣ 🌿 Ayurvedic Herbs & Formulations
+3️⃣ 🥗 Diet & Lifestyle
+4️⃣ 🧘 Yoga & Therapy
+5️⃣ 🛡️ Prevention
 
-Formatting rules:
-- Clear headings
-- Bullet points
-- Use emojis
-- Always include a disclaimer
-
-If no database match exists, infer diseases using Ayurvedic reasoning + AI.
+Rules:
+- Database is PRIMARY
+- Google search only for dosage/safety
+- Use emojis and clear headings
+- Always add disclaimer
 """
     )
 
@@ -126,30 +126,32 @@ If no database match exists, infer diseases using Ayurvedic reasoning + AI.
     )
     return response.text if hasattr(response, "text") else "No response"
 
+# ------------------ PDF ------------------
 def sanitize_for_pdf(text):
-    return str(text).encode("ascii","ignore").decode("ascii")
+    return str(text).encode("ascii", "ignore").decode("ascii")
 
 def generate_pdf_report(user_info, conversation):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica","B",16)
-    pdf.cell(0,10,"AyurGenix AI Consultation Report",ln=True,align="C")
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "AyurGenix AI Consultation Report", ln=True, align="C")
     pdf.ln(5)
 
-    pdf.set_font("Helvetica","",11)
-    for k,v in user_info.items():
-        pdf.cell(0,7,f"{k}: {sanitize_for_pdf(v)}",ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    for k, v in user_info.items():
+        pdf.cell(0, 7, f"{k}: {sanitize_for_pdf(v)}", ln=True)
 
     pdf.ln(5)
     for c in conversation:
-        pdf.set_font("Helvetica","B",11)
-        pdf.cell(0,7,f"{c['role'].upper()}:",ln=True)
-        pdf.set_font("Helvetica","",10)
-        pdf.multi_cell(0,6,sanitize_for_pdf(c["content"]))
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 7, f"{c['role'].upper()}:", ln=True)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.multi_cell(0, 6, sanitize_for_pdf(c["content"]))
         pdf.ln(2)
 
     return bytes(pdf.output())
 
+# ------------------ SESSION ------------------
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 if "user_info" not in st.session_state:
@@ -160,19 +162,20 @@ if "profile_saved" not in st.session_state:
 df = load_dataset()
 client = init_client()
 
+# ------------------ SIDEBAR ------------------
 with st.sidebar:
     st.header("🌿 User Profile")
     with st.form("profile"):
         name = st.text_input("Name")
-        age = st.number_input("Age",1,120,25)
-        dosha = st.selectbox("Dosha",["Unknown","Vata","Pitta","Kapha","Tridosha"])
-        stress = st.selectbox("Stress",["Low","Moderate","High"])
+        age = st.number_input("Age", 1, 120, 25)
+        dosha = st.selectbox("Dosha", ["Unknown", "Vata", "Pitta", "Kapha", "Tridosha"])
+        stress = st.selectbox("Stress", ["Low", "Moderate", "High"])
         if st.form_submit_button("Save"):
             st.session_state.user_info = {
-                "Name":name,
-                "Age":age,
-                "Dosha":dosha,
-                "Stress":stress
+                "Name": name,
+                "Age": age,
+                "Dosha": dosha,
+                "Stress": stress
             }
             st.session_state.profile_saved = True
             st.session_state.conversation = []
@@ -186,88 +189,60 @@ with st.sidebar:
             "application/pdf"
         )
 
+# ------------------ MAIN ------------------
 st.title("🌿 AyurGenix AI")
 
 for msg in st.session_state.conversation:
-    with st.chat_message("assistant" if msg["role"]=="model" else "user"):
+    with st.chat_message("assistant" if msg["role"] == "model" else "user"):
         st.write(msg["content"])
 
-if prompt := st.chat_input("Describe your symptoms..."):
-    if not st.session_state.profile_saved:
-        st.warning("Save profile first")
-    else:
-        st.session_state.conversation.append({"role":"user","content":prompt})
-        matches = search_dataset(df,prompt)
-        context = format_matches_for_context(matches)
-
-        full_prompt = f"""
-User Profile:
-{st.session_state.user_info}
-
-DATABASE:
-{context}
-
-User Symptoms:
-{prompt}
-"""
-        response = generate_response(client,full_prompt,st.session_state.conversation)
-        st.session_state.conversation.append({"role":"model","content":response})
-        st.rerun()        with st.chat_message("assistant", avatar="🌿"):
-            st.write(msg["content"])
-
-# Welcome message
-if not st.session_state.profile_saved:
-    st.info("""
-    👋 **Welcome to AyurGenix AI!**
-    
-    To begin your personalized Ayurvedic consultation:
-    1. 📝 Fill in your profile in the sidebar
-    2. 💾 Click "Save Profile" to start
-    3. 💬 I'll guide you through your health needs
-    """)
-
-# Chat input
+# ------------------ CHAT INPUT (ONLY ONE) ------------------
 if prompt := st.chat_input("Describe your symptoms or ask about Ayurvedic remedies..."):
     if not st.session_state.profile_saved:
         st.warning("Please save your profile first.")
     elif not client:
         st.error("API key not set.")
     else:
-        # Show user message immediately
-        st.session_state.conversation.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
-        
-        # Get dataset context
-        matches = search_dataset(df, prompt)
-        dataset_context = format_matches_for_context(matches)
-        
-        # Build full prompt with context
-        user_info = st.session_state.user_info
-        full_prompt = f"""User Profile:
-- Name: {user_info.get('name')}
-- Age: {user_info.get('age')}
-- Dosha: {user_info.get('dosha')}
-- Stress: {user_info.get('stress')}
-- Conditions: {user_info.get('conditions')}
-- Medications: {user_info.get('medications')}
+        st.session_state.conversation.append({
+            "role": "user",
+            "content": prompt
+        })
 
-=== VERIFIED AYURVEDIC DATABASE (100% ACCURATE - USE THIS FIRST) ===
-{dataset_context}
+        matches = search_dataset(df, prompt)
+        context = format_matches_for_context(matches)
+
+        full_prompt = f"""
+User Profile:
+{st.session_state.user_info}
+
+=== VERIFIED AYURVEDIC DATABASE ===
+{context}
 === END DATABASE ===
 
-User Question: {prompt}
+User Symptoms:
+{prompt}
+"""
 
-CRITICAL INSTRUCTIONS:
-1. The database information above is from a verified, trusted Ayurvedic medical source
-2. YOU MUST use the database information as your PRIMARY source for recommendations
-3. Quote the specific herbs, formulations, diet, yoga recommendations from the database
-4. Only use Google Search to supplement or verify safety/interactions
-5. Start your response with "Based on our verified Ayurvedic database..." if database matches found"""
-        
-        # Generate response
         with st.spinner("🌿 Consulting ancient wisdom..."):
-            full_response = generate_response(client, full_prompt, st.session_state.conversation)
-        
-        st.session_state.conversation.append({"role": "model", "content": full_response})
+            response = generate_response(
+                client,
+                full_prompt,
+                st.session_state.conversation
+            )
+
+        st.session_state.conversation.append({
+            "role": "model",
+            "content": response
+        })
+
         st.rerun()
+
+# ------------------ WELCOME ------------------
+if not st.session_state.profile_saved:
+    st.info("""
+👋 **Welcome to AyurGenix AI**
+
+1️⃣ Fill your profile  
+2️⃣ Save profile  
+3️⃣ Start consultation  
+""")
